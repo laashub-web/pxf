@@ -5,15 +5,17 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;
 import com.zaxxer.hikari.pool.HikariProxyConnection;
-import com.zaxxer.hikari.util.DriverDataSource;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
+import org.greenplum.pxf.plugins.jdbc.JdbcTestConfig;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.core.env.Environment;
+import org.springframework.stereotype.Component;
+import org.springframework.test.context.TestPropertySource;
 
 import java.sql.Connection;
 import java.sql.Driver;
@@ -24,45 +26,48 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.hamcrest.core.StringContains.containsString;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
+import static org.greenplum.pxf.plugins.jdbc.utils.ConnectionManager.CLEANUP_SLEEP_INTERVAL_NANOS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.powermock.api.mockito.PowerMockito.when;
+import static org.mockito.Mockito.when;
 
-@PrepareForTest({DriverManager.class, ConnectionManager.class, DriverDataSource.class})
-@RunWith(PowerMockRunner.class)
+@ExtendWith(MockitoExtension.class)
+@SpringBootTest(
+        classes = JdbcTestConfig.class,
+        webEnvironment = SpringBootTest.WebEnvironment.NONE
+)
 public class ConnectionManagerTest {
 
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
+    private ConnectionManager manager;
 
-    private ConnectionManager manager = ConnectionManager.getInstance();
+    @Autowired
+    @MockBean
+    private ConnectionManager.DriverManagerWrapper mockDriverManagerWrapper;
+
     private Properties connProps, poolProps;
     private Connection mockConnection;
 
-    @Before
-    public void before() throws SQLException {
+    @BeforeEach
+    public void before() {
         connProps = new Properties();
         poolProps = new Properties();
         mockConnection = mock(Connection.class);
-        PowerMockito.mockStatic(DriverManager.class);
+
+        manager = new ConnectionManager(ConnectionManager.DataSourceFactory.getInstance(), Ticker.systemTicker(), CLEANUP_SLEEP_INTERVAL_NANOS, mockDriverManagerWrapper);
     }
 
     @Test
-    public void testSingletonInstance() {
-        assertSame(manager, ConnectionManager.getInstance());
-    }
-
-    @Test
-    public void testMaskPassword () {
+    public void testMaskPassword() {
         assertEquals("********", ConnectionManager.maskPassword("12345678"));
         assertEquals("", ConnectionManager.maskPassword(""));
         assertEquals("", ConnectionManager.maskPassword(null));
@@ -70,7 +75,7 @@ public class ConnectionManagerTest {
 
     @Test
     public void testGetConnectionPoolDisabled() throws SQLException {
-        when(DriverManager.getConnection("test-url", connProps)).thenReturn(mockConnection);
+        when(mockDriverManagerWrapper.getConnection("test-url", connProps)).thenReturn(mockConnection);
         Connection conn = manager.getConnection("test-server", "test-url", connProps, false, null, null);
         assertSame(mockConnection, conn);
     }
@@ -78,16 +83,20 @@ public class ConnectionManagerTest {
     @Test
     public void testGetConnectionPoolEnabledNoPoolProps() throws SQLException {
         Driver mockDriver = mock(Driver.class);
-        when(DriverManager.getDriver("test-url")).thenReturn(mockDriver);
+        when(mockDriverManagerWrapper.getDriver("test-url")).thenReturn(mockDriver);
         when(mockDriver.connect("test-url", connProps)).thenReturn(mockConnection);
+        when(mockDriver.acceptsURL("test-url")).thenReturn(true);
+        DriverManager.registerDriver(mockDriver);
 
-        Driver mockDriver2 = mock(Driver.class); ;
-        when(DriverManager.getDriver("test-url-2")).thenReturn(mockDriver2);
+        Driver mockDriver2 = mock(Driver.class);
+        when(mockDriverManagerWrapper.getDriver("test-url-2")).thenReturn(mockDriver2);
         Connection mockConnection2 = mock(Connection.class);
         when(mockDriver2.connect("test-url-2", connProps)).thenReturn(mockConnection2);
+        when(mockDriver2.acceptsURL("test-url-2")).thenReturn(true);
+        DriverManager.registerDriver(mockDriver2);
 
         Connection conn;
-        for (int i=0; i< 5; i++) {
+        for (int i = 0; i < 5; i++) {
             conn = manager.getConnection("test-server", "test-url", connProps, true, poolProps, null);
             assertNotNull(conn);
             assertTrue(conn instanceof HikariProxyConnection);
@@ -102,16 +111,18 @@ public class ConnectionManagerTest {
 
         verify(mockDriver, times(1)).connect("test-url", connProps);
         verify(mockDriver2, times(1)).connect("test-url-2", connProps);
+
+        DriverManager.deregisterDriver(mockDriver);
+        DriverManager.deregisterDriver(mockDriver2);
     }
 
     @Test
     public void testGetConnectionPoolEnabledMaxConnOne() throws SQLException {
-        expectedException.expect(SQLTransientConnectionException.class);
-        expectedException.expectMessage(containsString(" - Connection is not available, request timed out after "));
-
         Driver mockDriver = mock(Driver.class);
-        when(DriverManager.getDriver("test-url")).thenReturn(mockDriver);
+        when(mockDriverManagerWrapper.getDriver("test-url")).thenReturn(mockDriver);
         when(mockDriver.connect("test-url", connProps)).thenReturn(mockConnection);
+        when(mockDriver.acceptsURL("test-url")).thenReturn(true);
+        DriverManager.registerDriver(mockDriver);
 
         poolProps.setProperty("maximumPoolSize", "1");
         poolProps.setProperty("connectionTimeout", "250");
@@ -119,14 +130,20 @@ public class ConnectionManagerTest {
         // get connection, do not close it
         manager.getConnection("test-server", "test-url", connProps, true, poolProps, null);
         // ask for connection again, it should time out
-        manager.getConnection("test-server", "test-url", connProps, true, poolProps, null);
+        Exception ex = assertThrows(SQLTransientConnectionException.class,
+                () -> manager.getConnection("test-server", "test-url", connProps, true, poolProps, null));
+        assertTrue(ex.getMessage().contains(" - Connection is not available, request timed out after "));
+
+        DriverManager.deregisterDriver(mockDriver);
     }
 
     @Test
     public void testGetConnectionPoolEnabledWithPoolProps() throws SQLException {
         Driver mockDriver = mock(Driver.class);
-        when(DriverManager.getDriver("test-url")).thenReturn(mockDriver);
-        when(mockDriver.connect(anyString(), anyObject())).thenReturn(mockConnection);
+        when(mockDriverManagerWrapper.getDriver("test-url")).thenReturn(mockDriver);
+        when(mockDriver.connect(anyString(), any())).thenReturn(mockConnection);
+        when(mockDriver.acceptsURL("test-url")).thenReturn(true);
+        DriverManager.registerDriver(mockDriver);
 
         connProps.setProperty("user", "foo");
         connProps.setProperty("password", "foo-password");
@@ -144,20 +161,22 @@ public class ConnectionManagerTest {
         Properties calledWith = (Properties) connProps.clone();
         calledWith.setProperty("foo", "123");
         verify(mockDriver, times(1)).connect("test-url", calledWith);
+
+        DriverManager.deregisterDriver(mockDriver);
     }
 
     @Test
     public void testPoolExpirationNoActiveConnections() throws SQLException {
-        MockTicker ticker = new MockTicker();
+        FakeTicker ticker = new FakeTicker();
         ConnectionManager.DataSourceFactory mockFactory = mock(ConnectionManager.DataSourceFactory.class);
         HikariDataSource mockDataSource = mock(HikariDataSource.class);
-        when(mockFactory.createDataSource(anyObject())).thenReturn(mockDataSource);
+        when(mockFactory.createDataSource(any())).thenReturn(mockDataSource);
         when(mockDataSource.getConnection()).thenReturn(mockConnection);
 
         HikariPoolMXBean mockMBean = mock(HikariPoolMXBean.class);
         when(mockDataSource.getHikariPoolMXBean()).thenReturn(mockMBean);
         when(mockMBean.getActiveConnections()).thenReturn(0);
-        manager = new ConnectionManager(mockFactory, ticker, ConnectionManager.CLEANUP_SLEEP_INTERVAL_NANOS);
+        manager = new ConnectionManager(mockFactory, ticker, CLEANUP_SLEEP_INTERVAL_NANOS, mockDriverManagerWrapper);
 
         manager.getConnection("test-server", "test-url", connProps, true, poolProps, null);
 
@@ -170,19 +189,18 @@ public class ConnectionManagerTest {
         verify(mockDataSource, times(1)).close(); // verify datasource is closed when evicted
     }
 
-
     @Test
     public void testPoolExpirationWithActiveConnections() throws SQLException {
-        MockTicker ticker = new MockTicker();
+        ConnectionManagerTest.FakeTicker ticker = new ConnectionManagerTest.FakeTicker();
         ConnectionManager.DataSourceFactory mockFactory = mock(ConnectionManager.DataSourceFactory.class);
         HikariDataSource mockDataSource = mock(HikariDataSource.class);
-        when(mockFactory.createDataSource(anyObject())).thenReturn(mockDataSource);
+        when(mockFactory.createDataSource(any())).thenReturn(mockDataSource);
         when(mockDataSource.getConnection()).thenReturn(mockConnection);
 
         HikariPoolMXBean mockMBean = mock(HikariPoolMXBean.class);
         when(mockDataSource.getHikariPoolMXBean()).thenReturn(mockMBean);
         when(mockMBean.getActiveConnections()).thenReturn(2, 1, 0);
-        manager = new ConnectionManager(mockFactory, ticker, TimeUnit.MILLISECONDS.toNanos(50));
+        ConnectionManager manager = new ConnectionManager(mockFactory, ticker, TimeUnit.MILLISECONDS.toNanos(50), mockDriverManagerWrapper);
 
         manager.getConnection("test-server", "test-url", connProps, true, poolProps, null);
 
@@ -198,16 +216,16 @@ public class ConnectionManagerTest {
 
     @Test
     public void testPoolExpirationWithActiveConnectionsOver24Hours() throws SQLException {
-        MockTicker ticker = new MockTicker();
+        ConnectionManagerTest.FakeTicker ticker = new ConnectionManagerTest.FakeTicker();
         ConnectionManager.DataSourceFactory mockFactory = mock(ConnectionManager.DataSourceFactory.class);
         HikariDataSource mockDataSource = mock(HikariDataSource.class);
-        when(mockFactory.createDataSource(anyObject())).thenReturn(mockDataSource);
+        when(mockFactory.createDataSource(any())).thenReturn(mockDataSource);
         when(mockDataSource.getConnection()).thenReturn(mockConnection);
 
         HikariPoolMXBean mockMBean = mock(HikariPoolMXBean.class);
         when(mockDataSource.getHikariPoolMXBean()).thenReturn(mockMBean);
         when(mockMBean.getActiveConnections()).thenReturn(1); //always report pool has an active connection
-        manager = new ConnectionManager(mockFactory, ticker, TimeUnit.MILLISECONDS.toNanos(50));
+        ConnectionManager manager = new ConnectionManager(mockFactory, ticker, TimeUnit.MILLISECONDS.toNanos(50), mockDriverManagerWrapper);
 
         manager.getConnection("test-server", "test-url", connProps, true, poolProps, null);
 
@@ -226,7 +244,7 @@ public class ConnectionManagerTest {
         verify(mockDataSource, times(1)).close(); // verify datasource is closed when evicted
     }
 
-    class MockTicker extends Ticker {
+    static class FakeTicker extends Ticker {
         private final AtomicLong nanos = new AtomicLong();
 
         @Override

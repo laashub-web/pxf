@@ -19,16 +19,15 @@ package org.greenplum.pxf.plugins.jdbc;
  * under the License.
  */
 
+import org.apache.hadoop.conf.Configuration;
 import org.greenplum.pxf.api.model.RequestContext;
 import org.greenplum.pxf.plugins.jdbc.utils.ConnectionManager;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -38,11 +37,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.fail;
-import static org.mockito.Matchers.anyBoolean;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -50,10 +50,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class JdbcBasePluginTest {
-
-    @Rule public ExpectedException thrown = ExpectedException.none();
 
     @Mock private ConnectionManager mockConnectionManager;
     @Mock private DatabaseMetaData mockMetaData;
@@ -65,7 +63,7 @@ public class JdbcBasePluginTest {
     private Map<String, String> additionalProps;
     private Properties poolProps;
 
-    @Before public void before() {
+    @BeforeEach public void before() {
         context = new RequestContext();
         context.setConfig("default");
         context.setDataSource("test-table");
@@ -119,7 +117,6 @@ public class JdbcBasePluginTest {
         when(mockMetaData.supportsTransactions()).thenReturn(false);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
         when(mockConnection.isClosed()).thenReturn(false);
-        when(mockConnection.getAutoCommit()).thenReturn(true);
         Mockito.doNothing().when(mockConnection).close();
         when(mockStatement.getConnection()).thenReturn(mockConnection);
         Mockito.doNothing().when(mockStatement).close();
@@ -132,10 +129,7 @@ public class JdbcBasePluginTest {
 
     @Test
     public void testCloseConnectionClosed() throws Exception {
-        when(mockMetaData.supportsTransactions()).thenReturn(false);
-        when(mockConnection.getMetaData()).thenReturn(mockMetaData);
         when(mockConnection.isClosed()).thenReturn(true);
-        when(mockConnection.getAutoCommit()).thenReturn(true);
         Mockito.doNothing().when(mockConnection).close();
         when(mockStatement.getConnection()).thenReturn(mockConnection);
         Mockito.doNothing().when(mockStatement).close();
@@ -150,18 +144,14 @@ public class JdbcBasePluginTest {
         when(mockStatement.getConnection()).thenReturn(mockConnection);
         Mockito.doNothing().when(mockStatement).close();
         when(mockConnection.isClosed()).thenReturn(false);
-        when(mockConnection.getAutoCommit()).thenReturn(false);
-        Mockito.doNothing().when(mockConnection).commit();
         Mockito.doNothing().when(mockConnection).close();
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
         doThrow(exception).when(mockMetaData).supportsTransactions();
 
-        try {
-            JdbcBasePlugin.closeStatementAndConnection(mockStatement);
-            fail("SQLException must have been thrown");
-        } catch (Exception e) {
-            assertSame(exception, e);
-        }
+        Exception e = assertThrows(SQLException.class,
+                () -> JdbcBasePlugin.closeStatementAndConnection(mockStatement),
+                "SQLException must have been thrown");
+        assertSame(exception, e);
 
         verify(mockStatement, times(1)).close();
         verify(mockConnection, times(1)).close();
@@ -178,12 +168,10 @@ public class JdbcBasePluginTest {
         doThrow(exception).when(mockConnection).commit();
         Mockito.doNothing().when(mockConnection).close();
 
-        try {
-            JdbcBasePlugin.closeStatementAndConnection(mockStatement);
-            fail("SQLException must have been thrown");
-        } catch (Exception e) {
-            assertSame(exception, e);
-        }
+        Exception e = assertThrows(SQLException.class,
+                () -> JdbcBasePlugin.closeStatementAndConnection(mockStatement),
+                "SQLException must have been thrown");
+        assertSame(exception, e);
 
         verify(mockStatement, times(1)).close();
         verify(mockConnection, times(1)).close();
@@ -196,8 +184,6 @@ public class JdbcBasePluginTest {
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
         when(mockMetaData.supportsTransactions()).thenReturn(false);
         when(mockConnection.isClosed()).thenReturn(false);
-        when(mockConnection.getAutoCommit()).thenReturn(false);
-        Mockito.doNothing().when(mockConnection).commit();
         doThrow(exception).when(mockConnection).close();
 
         JdbcBasePlugin.closeStatementAndConnection(mockStatement);
@@ -211,38 +197,25 @@ public class JdbcBasePluginTest {
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
         when(mockMetaData.supportsTransactions()).thenReturn(false);
         when(mockConnection.isClosed()).thenReturn(false);
-        when(mockConnection.getAutoCommit()).thenReturn(false);
-        Mockito.doNothing().when(mockConnection).commit();
-        Mockito.doNothing().when(mockConnection).close();
         doThrow(exception).when(mockStatement).close();
 
-        try {
-            JdbcBasePlugin.closeStatementAndConnection(mockStatement);
-            fail("SQLException must have been thrown");
-        } catch (Exception e) {
+        Exception e = assertThrows(SQLException.class,
+                () -> JdbcBasePlugin.closeStatementAndConnection(mockStatement),
+            "SQLException must have been thrown");
             assertSame(exception, e);
-        }
 
         verify(mockConnection, times(1)).close();
     }
 
     @Test
     public void testCloseConnectionWithExceptionStatementOnGetConnection() throws Exception {
-        when(mockConnection.getMetaData()).thenReturn(mockMetaData);
-        when(mockMetaData.supportsTransactions()).thenReturn(false);
-        when(mockConnection.isClosed()).thenReturn(false);
-        when(mockConnection.getAutoCommit()).thenReturn(false);
-        Mockito.doNothing().when(mockConnection).commit();
-        Mockito.doNothing().when(mockConnection).close();
         doThrow(exception).when(mockStatement).getConnection();
         Mockito.doNothing().when(mockStatement).close();
 
-        try {
-            JdbcBasePlugin.closeStatementAndConnection(mockStatement);
-            fail("SQLException must have been thrown");
-        } catch (Exception e) {
-            assertSame(exception, e);
-        }
+        Exception e = assertThrows(SQLException.class,
+                () -> JdbcBasePlugin.closeStatementAndConnection(mockStatement),
+                "SQLException must have been thrown");
+        assertSame(exception, e);
 
         verify(mockStatement, times(1)).close();
     }
@@ -252,7 +225,7 @@ public class JdbcBasePluginTest {
         additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
         additionalProps.put("jdbc.url", "test-url");
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
+        when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
@@ -262,37 +235,33 @@ public class JdbcBasePluginTest {
         verify(conn, never()).setTransactionIsolation(anyInt());
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testTransactionIsolationSetByUserToInvalidValue() throws SQLException {
         additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
         additionalProps.put("jdbc.url", "test-url");
         additionalProps.put("jdbc.connection.transactionIsolation", "foobarValue");
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
-        when(mockConnection.getMetaData()).thenReturn(mockMetaData);
-
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        assertThrows(IllegalArgumentException.class,
+                () -> plugin.initialize(context));
     }
 
 
     @Test
     public void testTransactionIsolationSetByUserToUnsupportedValue() throws SQLException {
-        thrown.expect(SQLException.class);
-        thrown.expectMessage("Transaction isolation level READ_UNCOMMITTED is not supported");
-
         additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
         additionalProps.put("jdbc.url", "test-url");
         additionalProps.put("jdbc.connection.transactionIsolation", "READ_UNCOMMITTED");
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
+        when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
         // READ_UNCOMMITTED is level 1
         when(mockMetaData.supportsTransactionIsolationLevel(1)).thenReturn(false);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
         plugin.initialize(context);
-        plugin.getConnection();
+        Exception e = assertThrows(SQLException.class, plugin::getConnection);
+        assertEquals("Transaction isolation level READ_UNCOMMITTED is not supported", e.getMessage());
     }
 
     @Test
@@ -301,7 +270,7 @@ public class JdbcBasePluginTest {
         additionalProps.put("jdbc.url", "test-url");
         additionalProps.put("jdbc.connection.transactionIsolation", "READ_COMMITTED");
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
+        when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
         // READ_COMMITTED is level 2
         when(mockMetaData.supportsTransactionIsolationLevel(2)).thenReturn(true);
@@ -314,17 +283,17 @@ public class JdbcBasePluginTest {
         verify(conn).setTransactionIsolation(2);
     }
 
-    @Test(expected = SQLException.class)
+    @Test
     public void testTransactionIsolationSetByUserFailedToGetMetadata() throws SQLException {
         additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
         additionalProps.put("jdbc.url", "test-url");
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
+        when(mockConnectionManager.getConnection(anyString(), anyString(), any(), anyBoolean(), any(), anyString())).thenReturn(mockConnection);
         doThrow(new SQLException("")).when(mockConnection).getMetaData();
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
         plugin.initialize(context);
-        plugin.getConnection();
+        assertThrows(SQLException.class, plugin::getConnection);
     }
 
     @Test
@@ -333,8 +302,6 @@ public class JdbcBasePluginTest {
         additionalProps.put("jdbc.url", "test-url");
         additionalProps.put("jdbc.statement.queryTimeout", "173");
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
-        when(mockConnection.getMetaData()).thenReturn(mockMetaData);
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
@@ -349,8 +316,6 @@ public class JdbcBasePluginTest {
         additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
         additionalProps.put("jdbc.url", "test-url");
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
-        when(mockConnection.getMetaData()).thenReturn(mockMetaData);
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
@@ -367,7 +332,7 @@ public class JdbcBasePluginTest {
         additionalProps.put("jdbc.url", "test-url");
         additionalProps.put("jdbc.pool.enabled", "false");
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
+        when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
@@ -388,7 +353,11 @@ public class JdbcBasePluginTest {
         additionalProps.put("jdbc.connection.property.bar", "bar-val");
         additionalProps.put("jdbc.pool.enabled", "false");
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
+        Properties connProps = new Properties();
+        connProps.setProperty("foo", "foo-val");
+        connProps.setProperty("bar", "bar-val");
+
+        when(mockConnectionManager.getConnection("test-server", "test-url", connProps, false, null, null)).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
@@ -396,10 +365,6 @@ public class JdbcBasePluginTest {
         Connection conn = plugin.getConnection();
 
         assertSame(mockConnection, conn);
-
-        Properties connProps = new Properties();
-        connProps.setProperty("foo", "foo-val");
-        connProps.setProperty("bar", "bar-val");
 
         verify(mockConnectionManager).getConnection("test-server", "test-url", connProps, false, null, null);
     }
@@ -411,9 +376,9 @@ public class JdbcBasePluginTest {
         additionalProps.put("jdbc.url", "test-url");
         additionalProps.put("jdbc.connection.property.foo", "foo-val");
         additionalProps.put("jdbc.connection.property.bar", "bar-val");
-        // pool is enabled by default
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
+        // pool is enabled by default
+        when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
@@ -440,7 +405,7 @@ public class JdbcBasePluginTest {
 
         additionalProps.put("jdbc.pool.qualifier", "qual");
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
+        when(mockConnectionManager.getConnection(anyString(), anyString(), any(), anyBoolean(), any(), anyString())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
@@ -468,7 +433,7 @@ public class JdbcBasePluginTest {
         additionalProps.put("jdbc.pool.property.xyz", "xyz-val");
         additionalProps.put("jdbc.pool.property.maximumPoolSize", "99"); // overwrite default
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
+        when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
@@ -499,7 +464,7 @@ public class JdbcBasePluginTest {
         additionalProps.put("jdbc.pool.property.abc", "abc-val");
         additionalProps.put("jdbc.pool.property.xyz", "xyz-val");
 
-        when(mockConnectionManager.getConnection(anyString(), anyString(), anyObject(), anyBoolean(), anyObject(), anyString())).thenReturn(mockConnection);
+        when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);

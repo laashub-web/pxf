@@ -10,14 +10,18 @@ import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import lombok.SneakyThrows;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.SQLTimeoutException;
 import java.util.Properties;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -42,15 +46,17 @@ public class ConnectionManager {
 
     private Executor datasourceClosingExecutor;
     private LoadingCache<PoolDescriptor, HikariDataSource> dataSources;
+    private final DriverManagerWrapper driverManagerWrapper;
 
     /**
      * Creates an instance of the connection manager.
      */
     private ConnectionManager() {
-        this(DataSourceFactory.getInstance(), Ticker.systemTicker(), CLEANUP_SLEEP_INTERVAL_NANOS);
+        this(DataSourceFactory.getInstance(), Ticker.systemTicker(), CLEANUP_SLEEP_INTERVAL_NANOS, DriverManagerWrapper.getInstance());
     }
 
-    ConnectionManager(DataSourceFactory factory, Ticker ticker, long sleepIntervalNanos) {
+    ConnectionManager(DataSourceFactory factory, Ticker ticker, long sleepIntervalNanos, DriverManagerWrapper driverManagerWrapper) {
+        this.driverManagerWrapper = driverManagerWrapper;
         this.datasourceClosingExecutor = Executors.newCachedThreadPool();
         this.dataSources = CacheBuilder.newBuilder()
                 .ticker(ticker)
@@ -77,7 +83,7 @@ public class ConnectionManager {
                             hds.close();
                         }
                         , datasourceClosingExecutor))
-                .build(CacheLoader.from(key -> factory.createDataSource(key)));
+                .build(CacheLoader.from(factory::createDataSource));
     }
 
     /**
@@ -95,13 +101,15 @@ public class ConnectionManager {
     }
 
     /**
-     * Returns a connection to the target database either directly from the DriverManager or
-     * from a Hikari connection pool that manages connections.
-     * @param server configuration server
-     * @param jdbcUrl JDBC url of the target database
+     * Returns a connection to the target database either directly from the
+     * DriverManagerWrapper or from a Hikari connection pool that manages
+     * connections.
+     *
+     * @param server                  configuration server
+     * @param jdbcUrl                 JDBC url of the target database
      * @param connectionConfiguration connection configuration properties
-     * @param isPoolEnabled true if the connection pool is enabled, false otherwise
-     * @param poolConfiguration pool configuration properties
+     * @param isPoolEnabled           true if the connection pool is enabled, false otherwise
+     * @param poolConfiguration       pool configuration properties
      * @return connection instance
      * @throws SQLException if connection can not be obtained
      */
@@ -109,8 +117,8 @@ public class ConnectionManager {
 
         Connection result;
         if (!isPoolEnabled) {
-            LOG.debug("Requesting DriverManager.getConnection for server={}", server);
-            result = DriverManager.getConnection(jdbcUrl, connectionConfiguration);
+            LOG.debug("Requesting driverManagerWrapper.getConnection for server={}", server);
+            result = driverManagerWrapper.getConnection(jdbcUrl, connectionConfiguration);
         } else {
 
             PoolDescriptor poolDescriptor = new PoolDescriptor(server, jdbcUrl, connectionConfiguration, poolConfiguration, qualifier);
@@ -151,9 +159,11 @@ public class ConnectionManager {
 
         /**
          * Creates a new datasource instance based on parameters contained in PoolDescriptor.
+         *
          * @param poolDescriptor descriptor containing pool parameters
          * @return instance of HikariDataSource
          */
+        @SneakyThrows
         HikariDataSource createDataSource(PoolDescriptor poolDescriptor) {
 
             // initialize Hikari config with provided properties
@@ -179,11 +189,74 @@ public class ConnectionManager {
 
         /**
          * Returns a singleton instance of the data source factory.
+         *
          * @return a singleton instance of the data source factory
          */
         static DataSourceFactory getInstance() {
             return dataSourceFactoryInstance;
         }
+    }
+
+    /**
+     * Wrap calls to the DriverManager
+     */
+    @Component
+    protected static class DriverManagerWrapper {
+
+        private static final DriverManagerWrapper driverManagerWrapperInstance = new DriverManagerWrapper();
+
+        /**
+         * Attempts to establish a connection to the given database URL.
+         * The <code>DriverManager</code> attempts to select an appropriate driver from
+         * the set of registered JDBC drivers.
+         * <p>
+         * <B>Note:</B> If a property is specified as part of the {@code url} and
+         * is also specified in the {@code Properties} object, it is
+         * implementation-defined as to which value will take precedence.
+         * For maximum portability, an application should only specify a
+         * property once.
+         *
+         * @param url  a database url of the form
+         *             <code> jdbc:<em>subprotocol</em>:<em>subname</em></code>
+         * @param info a list of arbitrary string tag/value pairs as
+         *             connection arguments; normally at least a "user" and
+         *             "password" property should be included
+         * @return a Connection to the URL
+         * @throws SQLException        if a database access error occurs or the url is
+         *                             {@code null}
+         * @throws SQLTimeoutException when the driver has determined that the
+         *                             timeout value specified by the {@code setLoginTimeout} method
+         *                             has been exceeded and has at least tried to cancel the
+         *                             current database connection attempt
+         */
+        public Connection getConnection(String url, java.util.Properties info) throws SQLException {
+            return DriverManager.getConnection(url, info);
+        }
+
+        /**
+         * Attempts to locate a driver that understands the given URL.
+         * The <code>DriverManager</code> attempts to select an appropriate driver from
+         * the set of registered JDBC drivers.
+         *
+         * @param url a database URL of the form
+         *            <code>jdbc:<em>subprotocol</em>:<em>subname</em></code>
+         * @return a <code>Driver</code> object representing a driver
+         * that can connect to the given URL
+         * @throws SQLException if a database access error occurs
+         */
+        public Driver getDriver(String url) throws SQLException {
+            return DriverManager.getDriver(url);
+        }
+
+        /**
+         * Returns a singleton instance of the driver manager wrapper
+         *
+         * @return a singleton instance of the driver manager wrapper
+         */
+        static DriverManagerWrapper getInstance() {
+            return driverManagerWrapperInstance;
+        }
+
     }
 }
 

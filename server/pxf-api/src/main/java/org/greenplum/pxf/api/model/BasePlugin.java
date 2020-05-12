@@ -39,7 +39,7 @@ public class BasePlugin implements Plugin {
         this(BaseConfigurationFactory.getInstance());
     }
 
-    BasePlugin(ConfigurationFactory configurationFactory) {
+    protected BasePlugin(ConfigurationFactory configurationFactory) {
         this.configurationFactory = configurationFactory;
     }
 

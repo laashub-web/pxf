@@ -21,7 +21,9 @@ package org.greenplum.pxf.plugins.jdbc;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.greenplum.pxf.api.model.BaseConfigurationFactory;
 import org.greenplum.pxf.api.model.BasePlugin;
+import org.greenplum.pxf.api.model.ConfigurationFactory;
 import org.greenplum.pxf.api.model.RequestContext;
 import org.greenplum.pxf.api.security.SecureLogin;
 import org.greenplum.pxf.api.utilities.ColumnDescriptor;
@@ -170,15 +172,26 @@ public class JdbcBasePlugin extends BasePlugin {
      * Creates a new instance with default (singleton) instance of ConnectionManager.
      */
     public JdbcBasePlugin() {
-        this(ConnectionManager.getInstance());
+        this(ConnectionManager.getInstance(), BaseConfigurationFactory.getInstance());
     }
 
     /**
-     * Creates a new instance with the given ConnectionManager.
+     * Creates a new instance with the given ConnectionManager
      *
-     * @param connectionManager connection manager instance
+     * @param connectionManager    connection manager instance
      */
     JdbcBasePlugin(ConnectionManager connectionManager) {
+        this(connectionManager, BaseConfigurationFactory.getInstance());
+    }
+
+    /**
+     * Creates a new instance with the given ConnectionManager and ConfigurationFactory
+     *
+     * @param connectionManager    connection manager instance
+     * @param configurationFactory the configuration factory
+     */
+    JdbcBasePlugin(ConnectionManager connectionManager, ConfigurationFactory configurationFactory) {
+        super(configurationFactory);
         this.connectionManager = connectionManager;
     }
 
