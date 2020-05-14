@@ -26,6 +26,6 @@ class PxfServerPropertiesTest {
 
         assertNotNull(properties.getTomcat());
         assertEquals(50, properties.getTomcat().getMaxHeaderCount());
-        assertFalse(properties.isMetadataCache());
+        assertFalse(properties.isMetadataCacheEnabled());
     }
 }

@@ -19,6 +19,7 @@ package org.greenplum.pxf.plugins.jdbc;
  * under the License.
  */
 
+import org.apache.hadoop.conf.Configuration;
 import org.greenplum.pxf.api.model.Fragment;
 import org.greenplum.pxf.api.model.RequestContext;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,10 +32,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class JdbcPartitionFragmenterTest {
 
+    private Configuration configuration;
     private RequestContext context;
 
     @BeforeEach
     public void setUp() {
+        configuration = new Configuration();
         context = new RequestContext();
         context.setConfig("default");
         context.setDataSource("table");
@@ -45,7 +48,7 @@ public class JdbcPartitionFragmenterTest {
     public void testNoPartition() {
 
         JdbcPartitionFragmenter fragment = new JdbcPartitionFragmenter();
-        fragment.initialize(context);
+        fragment.initialize(context, configuration);
         List<Fragment> fragments = fragment.getFragments();
 
         assertEquals(1, fragments.size());
@@ -55,13 +58,13 @@ public class JdbcPartitionFragmenterTest {
     public void testPartitionByTypeInvalid() {
         context.addOption("PARTITION_BY", "level:float");
         assertThrows(IllegalArgumentException.class,
-                () -> new JdbcPartitionFragmenter().initialize(context));
+                () -> new JdbcPartitionFragmenter().initialize(context, configuration));
     }
 
     @Test
     public void testPartitionByFormatInvalid() {
         context.addOption("PARTITION_BY", "level-enum");
         assertThrows(IllegalArgumentException.class,
-                () -> new JdbcPartitionFragmenter().initialize(context));
+                () -> new JdbcPartitionFragmenter().initialize(context, configuration));
     }
 }

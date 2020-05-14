@@ -20,6 +20,7 @@ package org.greenplum.pxf.api;
  */
 
 
+import org.apache.hadoop.conf.Configuration;
 import org.greenplum.pxf.api.examples.DemoResolver;
 import org.greenplum.pxf.api.examples.DemoTextResolver;
 import org.greenplum.pxf.api.model.RequestContext;
@@ -55,8 +56,10 @@ public class DemoResolverTest {
         customResolver = new DemoResolver();
         textResolver = new DemoTextResolver();
 
-        customResolver.initialize(context);
-        textResolver.initialize(context);
+        Configuration configuration = new Configuration();
+
+        customResolver.initialize(context, configuration);
+        textResolver.initialize(context, configuration);
 
         row = new OneRow("0.0", DATA);
         field = new OneField(VARCHAR.getOID(), DATA.getBytes());

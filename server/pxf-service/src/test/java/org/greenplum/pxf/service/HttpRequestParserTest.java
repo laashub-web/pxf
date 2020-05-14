@@ -28,7 +28,6 @@ import org.greenplum.pxf.api.model.RequestContext.RequestType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpHeaders;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
@@ -233,18 +232,18 @@ public class HttpRequestParserTest {
         assertTrue(context.isThreadSafe());
 
         parameters.set("X-GP-OPTIONS-THREAD-SAFE", "true");
-        context = new HttpRequestParser().parseRequest(parameters, RequestType.FRAGMENTER);
+        context = new HttpRequestParser(mockPluginConf).parseRequest(parameters, RequestType.FRAGMENTER);
         assertTrue(context.isThreadSafe());
     }
 
     @Test
     public void threadSafeFalse() {
         parameters.add("X-GP-OPTIONS-THREAD-SAFE", "False");
-        RequestContext context = new HttpRequestParser().parseRequest(parameters, RequestType.FRAGMENTER);
+        RequestContext context = new HttpRequestParser(mockPluginConf).parseRequest(parameters, RequestType.FRAGMENTER);
         assertFalse(context.isThreadSafe());
 
         parameters.set("X-GP-OPTIONS-THREAD-SAFE", "falSE");
-        context = new HttpRequestParser().parseRequest(parameters, RequestType.FRAGMENTER);
+        context = new HttpRequestParser(mockPluginConf).parseRequest(parameters, RequestType.FRAGMENTER);
         assertFalse(context.isThreadSafe());
     }
 

@@ -20,6 +20,7 @@ package org.greenplum.pxf.api;
  */
 
 
+import org.apache.hadoop.conf.Configuration;
 import org.greenplum.pxf.api.examples.DemoAccessor;
 import org.greenplum.pxf.api.model.RequestContext;
 import org.greenplum.pxf.api.utilities.ColumnDescriptor;
@@ -40,7 +41,7 @@ public class DemoAccessorTest {
         context.setConfig("default");
         context.setUser("test-user");
         accessor = new DemoAccessor();
-        accessor.initialize(context);
+        accessor.initialize(context, new Configuration());
     }
 
     @Test

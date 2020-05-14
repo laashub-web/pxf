@@ -59,11 +59,13 @@ public class JdbcBasePluginTest {
     @Mock private PreparedStatement mockStatement;
 
     private SQLException exception = new SQLException("some error");
+    private Configuration configuration;
     private RequestContext context;
     private Map<String, String> additionalProps;
     private Properties poolProps;
 
     @BeforeEach public void before() {
+        configuration = new Configuration();
         context = new RequestContext();
         context.setConfig("default");
         context.setDataSource("test-table");
@@ -222,36 +224,36 @@ public class JdbcBasePluginTest {
 
     @Test
     public void testTransactionIsolationNotSetByUser() throws SQLException {
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
 
         when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        plugin.initialize(context, configuration);
         Connection conn = plugin.getConnection();
 
         verify(conn, never()).setTransactionIsolation(anyInt());
     }
 
     @Test
-    public void testTransactionIsolationSetByUserToInvalidValue() throws SQLException {
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
-        additionalProps.put("jdbc.connection.transactionIsolation", "foobarValue");
+    public void testTransactionIsolationSetByUserToInvalidValue() {
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
+        configuration.set("jdbc.connection.transactionIsolation", "foobarValue");
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
         assertThrows(IllegalArgumentException.class,
-                () -> plugin.initialize(context));
+                () -> plugin.initialize(context, configuration));
     }
 
 
     @Test
     public void testTransactionIsolationSetByUserToUnsupportedValue() throws SQLException {
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
-        additionalProps.put("jdbc.connection.transactionIsolation", "READ_UNCOMMITTED");
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
+        configuration.set("jdbc.connection.transactionIsolation", "READ_UNCOMMITTED");
 
         when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
@@ -259,16 +261,16 @@ public class JdbcBasePluginTest {
         when(mockMetaData.supportsTransactionIsolationLevel(1)).thenReturn(false);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        plugin.initialize(context, configuration);
         Exception e = assertThrows(SQLException.class, plugin::getConnection);
         assertEquals("Transaction isolation level READ_UNCOMMITTED is not supported", e.getMessage());
     }
 
     @Test
     public void testTransactionIsolationSetByUserToValidValue() throws SQLException {
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
-        additionalProps.put("jdbc.connection.transactionIsolation", "READ_COMMITTED");
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
+        configuration.set("jdbc.connection.transactionIsolation", "READ_COMMITTED");
 
         when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
@@ -276,7 +278,7 @@ public class JdbcBasePluginTest {
         when(mockMetaData.supportsTransactionIsolationLevel(2)).thenReturn(true);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        plugin.initialize(context, configuration);
         Connection conn = plugin.getConnection();
 
         // READ_COMMITTED is level 2
@@ -285,27 +287,27 @@ public class JdbcBasePluginTest {
 
     @Test
     public void testTransactionIsolationSetByUserFailedToGetMetadata() throws SQLException {
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
 
         when(mockConnectionManager.getConnection(anyString(), anyString(), any(), anyBoolean(), any(), anyString())).thenReturn(mockConnection);
         doThrow(new SQLException("")).when(mockConnection).getMetaData();
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        plugin.initialize(context, configuration);
         assertThrows(SQLException.class, plugin::getConnection);
     }
 
     @Test
     public void testGetPreparedStatementSetsQueryTimeoutIfSpecified() throws SQLException {
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
-        additionalProps.put("jdbc.statement.queryTimeout", "173");
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
+        configuration.set("jdbc.statement.queryTimeout", "173");
 
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        plugin.initialize(context, configuration);
         plugin.getPreparedStatement(mockConnection, "foo");
 
         verify(mockStatement).setQueryTimeout(173);
@@ -313,13 +315,13 @@ public class JdbcBasePluginTest {
 
     @Test
     public void testGetPreparedStatementDoesNotSetQueryTimeoutIfNotSpecified() throws SQLException {
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
 
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        plugin.initialize(context, configuration);
         plugin.getPreparedStatement(mockConnection, "foo");
 
         verify(mockStatement, never()).setQueryTimeout(anyInt());
@@ -328,15 +330,15 @@ public class JdbcBasePluginTest {
     @Test
     public void testGetConnectionNoConnPropsPoolDisabled() throws SQLException {
         context.setServerName("test-server");
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
-        additionalProps.put("jdbc.pool.enabled", "false");
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
+        configuration.set("jdbc.pool.enabled", "false");
 
         when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        plugin.initialize(context, configuration);
         Connection conn = plugin.getConnection();
 
         assertSame(mockConnection, conn);
@@ -347,11 +349,6 @@ public class JdbcBasePluginTest {
     @Test
     public void testGetConnectionConnPropsPoolDisabled() throws SQLException {
         context.setServerName("test-server");
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
-        additionalProps.put("jdbc.connection.property.foo", "foo-val");
-        additionalProps.put("jdbc.connection.property.bar", "bar-val");
-        additionalProps.put("jdbc.pool.enabled", "false");
 
         Properties connProps = new Properties();
         connProps.setProperty("foo", "foo-val");
@@ -360,8 +357,14 @@ public class JdbcBasePluginTest {
         when(mockConnectionManager.getConnection("test-server", "test-url", connProps, false, null, null)).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
+        configuration.set("jdbc.connection.property.foo", "foo-val");
+        configuration.set("jdbc.connection.property.bar", "bar-val");
+        configuration.set("jdbc.pool.enabled", "false");
+
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        plugin.initialize(context, configuration);
         Connection conn = plugin.getConnection();
 
         assertSame(mockConnection, conn);
@@ -372,17 +375,18 @@ public class JdbcBasePluginTest {
     @Test
     public void testGetConnectionConnPropsPoolEnabledNoPoolProps() throws SQLException {
         context.setServerName("test-server");
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
-        additionalProps.put("jdbc.connection.property.foo", "foo-val");
-        additionalProps.put("jdbc.connection.property.bar", "bar-val");
+
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
+        configuration.set("jdbc.connection.property.foo", "foo-val");
+        configuration.set("jdbc.connection.property.bar", "bar-val");
 
         // pool is enabled by default
         when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        plugin.initialize(context, configuration);
         Connection conn = plugin.getConnection();
 
         assertSame(mockConnection, conn);
@@ -397,19 +401,20 @@ public class JdbcBasePluginTest {
     @Test
     public void testGetConnectionConnPropsPoolEnabledWithQualifier() throws SQLException {
         context.setServerName("test-server");
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
-        additionalProps.put("jdbc.connection.property.foo", "foo-val");
-        additionalProps.put("jdbc.connection.property.bar", "bar-val");
+
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
+        configuration.set("jdbc.connection.property.foo", "foo-val");
+        configuration.set("jdbc.connection.property.bar", "bar-val");
         // pool is enabled by default
 
-        additionalProps.put("jdbc.pool.qualifier", "qual");
+        configuration.set("jdbc.pool.qualifier", "qual");
 
         when(mockConnectionManager.getConnection(anyString(), anyString(), any(), anyBoolean(), any(), anyString())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        plugin.initialize(context, configuration);
         Connection conn = plugin.getConnection();
 
         assertSame(mockConnection, conn);
@@ -424,20 +429,21 @@ public class JdbcBasePluginTest {
     @Test
     public void testGetConnectionConnPropsPoolEnabledPoolProps() throws SQLException {
         context.setServerName("test-server");
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
-        additionalProps.put("jdbc.connection.property.foo", "foo-val");
-        additionalProps.put("jdbc.connection.property.bar", "bar-val");
-        additionalProps.put("jdbc.pool.enabled", "true");
-        additionalProps.put("jdbc.pool.property.abc", "abc-val");
-        additionalProps.put("jdbc.pool.property.xyz", "xyz-val");
-        additionalProps.put("jdbc.pool.property.maximumPoolSize", "99"); // overwrite default
+
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
+        configuration.set("jdbc.connection.property.foo", "foo-val");
+        configuration.set("jdbc.connection.property.bar", "bar-val");
+        configuration.set("jdbc.pool.enabled", "true");
+        configuration.set("jdbc.pool.property.abc", "abc-val");
+        configuration.set("jdbc.pool.property.xyz", "xyz-val");
+        configuration.set("jdbc.pool.property.maximumPoolSize", "99"); // overwrite default
 
         when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        plugin.initialize(context, configuration);
         Connection conn = plugin.getConnection();
 
         assertSame(mockConnection, conn);
@@ -456,19 +462,20 @@ public class JdbcBasePluginTest {
     @Test
     public void testGetConnectionConnPropsPoolDisabledPoolProps() throws SQLException {
         context.setServerName("test-server");
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
-        additionalProps.put("jdbc.connection.property.foo", "foo-val");
-        additionalProps.put("jdbc.connection.property.bar", "bar-val");
-        additionalProps.put("jdbc.pool.enabled", "false");
-        additionalProps.put("jdbc.pool.property.abc", "abc-val");
-        additionalProps.put("jdbc.pool.property.xyz", "xyz-val");
+
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
+        configuration.set("jdbc.connection.property.foo", "foo-val");
+        configuration.set("jdbc.connection.property.bar", "bar-val");
+        configuration.set("jdbc.pool.enabled", "false");
+        configuration.set("jdbc.pool.property.abc", "abc-val");
+        configuration.set("jdbc.pool.property.xyz", "xyz-val");
 
         when(mockConnectionManager.getConnection(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
 
         JdbcBasePlugin plugin = new JdbcBasePlugin(mockConnectionManager);
-        plugin.initialize(context);
+        plugin.initialize(context, configuration);
         Connection conn = plugin.getConnection();
 
         assertSame(mockConnection, conn);

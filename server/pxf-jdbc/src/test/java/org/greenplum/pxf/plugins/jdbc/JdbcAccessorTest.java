@@ -1,6 +1,7 @@
 package org.greenplum.pxf.plugins.jdbc;
 
 import org.apache.commons.lang.SerializationUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.greenplum.pxf.api.model.RequestContext;
 import org.greenplum.pxf.plugins.jdbc.partitioning.PartitionType;
 import org.greenplum.pxf.plugins.jdbc.utils.ConnectionManager;
@@ -29,6 +30,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 public class JdbcAccessorTest {
 
+    private Configuration configuration;
     private JdbcAccessor accessor;
     private RequestContext context;
 
@@ -47,20 +49,20 @@ public class JdbcAccessorTest {
     public void setup() {
 
         accessor = new JdbcAccessor(mockConnectionManager);
+        configuration = new Configuration();
         context = new RequestContext();
         context.setConfig("default");
         context.setDataSource("test-table");
-        Map<String, String> additionalProps = new HashMap<>();
-        additionalProps.put("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
-        additionalProps.put("jdbc.url", "test-url");
-        context.setAdditionalConfigProps(additionalProps);
         context.setUser("test-user");
+
+        configuration.set("jdbc.driver", "org.greenplum.pxf.plugins.jdbc.FakeJdbcDriver");
+        configuration.set("jdbc.url", "test-url");
     }
 
     @Test
     public void testWriteFailsWhenQueryIsSpecified() {
         context.setDataSource("query:foo");
-        accessor.initialize(context);
+        accessor.initialize(context, configuration);
         Exception e = assertThrows(IllegalArgumentException.class,
                 () -> accessor.openForWrite());
         assertEquals("specifying query name in data path is not supported for JDBC writable external tables", e.getMessage());
@@ -71,7 +73,7 @@ public class JdbcAccessorTest {
         wireMocksForRead();
         context.setServerName("unknown");
         context.setDataSource("query:foo");
-        accessor.initialize(context);
+        accessor.initialize(context, configuration);
         Exception e = assertThrows(IllegalStateException.class,
                 () -> accessor.openForRead());
         assertEquals("No server configuration directory found for server unknown", e.getMessage());
@@ -80,9 +82,9 @@ public class JdbcAccessorTest {
     @Test
     public void testReadFromQueryFailsWhenServerDirectoryDoesNotExist() throws SQLException {
         wireMocksForRead();
-        context.getAdditionalConfigProps().put("pxf.config.server.directory", "/non-existing-directory");
+        configuration.set("pxf.config.server.directory", "/non-existing-directory");
         context.setDataSource("query:foo");
-        accessor.initialize(context);
+        accessor.initialize(context, configuration);
         Exception e = assertThrows(RuntimeException.class,
                 () -> accessor.openForRead());
         assertEquals("Failed to read text of query foo : File '/non-existing-directory/foo.sql' does not exist", e.getMessage());
@@ -91,9 +93,9 @@ public class JdbcAccessorTest {
     @Test
     public void testReadFromQueryFailsWhenQueryFileIsNotFoundInExistingDirectory() throws SQLException {
         wireMocksForRead();
-        context.getAdditionalConfigProps().put("pxf.config.server.directory", "/tmp/");
+        configuration.set("pxf.config.server.directory", "/tmp/");
         context.setDataSource("query:foo");
-        accessor.initialize(context);
+        accessor.initialize(context, configuration);
         Exception e = assertThrows(RuntimeException.class,
                 () -> accessor.openForRead());
         assertEquals("Failed to read text of query foo : File '/tmp/foo.sql' does not exist", e.getMessage());
@@ -103,9 +105,9 @@ public class JdbcAccessorTest {
     public void testReadFromQueryFailsWhenQueryFileIsEmpty() throws Exception {
         wireMocksForRead();
         String serversDirectory = new File(this.getClass().getClassLoader().getResource("servers").toURI()).getCanonicalPath();
-        context.getAdditionalConfigProps().put("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
+        configuration.set("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
         context.setDataSource("query:emptyquery");
-        accessor.initialize(context);
+        accessor.initialize(context, configuration);
         Exception e = assertThrows(RuntimeException.class,
                 () -> accessor.openForRead());
         assertEquals("Query text file is empty for query emptyquery", e.getMessage());
@@ -114,13 +116,13 @@ public class JdbcAccessorTest {
     @Test
     public void testReadFromQuery() throws Exception {
         String serversDirectory = new File(this.getClass().getClassLoader().getResource("servers").toURI()).getCanonicalPath();
-        context.getAdditionalConfigProps().put("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
+        configuration.set("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
         context.setDataSource("query:testquery");
         ArgumentCaptor<String> queryPassed = ArgumentCaptor.forClass(String.class);
         when(mockStatement.executeQuery(queryPassed.capture())).thenReturn(mockResultSet);
         wireMocksForReadWithCreateStatement();
 
-        accessor.initialize(context);
+        accessor.initialize(context, configuration);
         accessor.openForRead();
 
         String expected = "SELECT  FROM (SELECT dept.name, count(), max(emp.salary)\n" +
@@ -133,13 +135,13 @@ public class JdbcAccessorTest {
     @Test
     public void testReadFromQueryEndingInSemicolon() throws Exception {
         String serversDirectory = new File(this.getClass().getClassLoader().getResource("servers").toURI()).getCanonicalPath();
-        context.getAdditionalConfigProps().put("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
+        configuration.set("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
         context.setDataSource("query:testquerywithsemicolon");
         ArgumentCaptor<String> queryPassed = ArgumentCaptor.forClass(String.class);
         when(mockStatement.executeQuery(queryPassed.capture())).thenReturn(mockResultSet);
         wireMocksForReadWithCreateStatement();
 
-        accessor.initialize(context);
+        accessor.initialize(context, configuration);
         accessor.openForRead();
 
         String expected = "SELECT  FROM (SELECT dept.name, count(), max(emp.salary)\n" +
@@ -152,13 +154,13 @@ public class JdbcAccessorTest {
     @Test
     public void testReadFromQueryWithValidSemicolon() throws Exception {
         String serversDirectory = new File(this.getClass().getClassLoader().getResource("servers").toURI()).getCanonicalPath();
-        context.getAdditionalConfigProps().put("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
+        configuration.set("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
         context.setDataSource("query:testquerywithvalidsemicolon");
         ArgumentCaptor<String> queryPassed = ArgumentCaptor.forClass(String.class);
         when(mockStatement.executeQuery(queryPassed.capture())).thenReturn(mockResultSet);
         wireMocksForReadWithCreateStatement();
 
-        accessor.initialize(context);
+        accessor.initialize(context, configuration);
         accessor.openForRead();
 
         String expected = "SELECT  FROM (SELECT dept.name, count(), max(emp.salary)\n" +
@@ -172,7 +174,7 @@ public class JdbcAccessorTest {
     @Test
     public void testReadFromQueryWithPartitions() throws Exception {
         String serversDirectory = new File(this.getClass().getClassLoader().getResource("servers").toURI()).getCanonicalPath();
-        context.getAdditionalConfigProps().put("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
+        configuration.set("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
         context.setDataSource("query:testquery");
         context.addOption("PARTITION_BY", "count:int");
         context.addOption("RANGE", "1:10");
@@ -182,7 +184,7 @@ public class JdbcAccessorTest {
         when(mockStatement.executeQuery(queryPassed.capture())).thenReturn(mockResultSet);
         wireMocksForReadWithCreateStatement();
 
-        accessor.initialize(context);
+        accessor.initialize(context, configuration);
         accessor.openForRead();
 
         String expected = "SELECT  FROM (SELECT dept.name, count(), max(emp.salary)\n" +
@@ -195,7 +197,7 @@ public class JdbcAccessorTest {
     @Test
     public void testReadFromQueryWithWhereWithPartitions() throws Exception {
         String serversDirectory = new File(this.getClass().getClassLoader().getResource("servers").toURI()).getCanonicalPath();
-        context.getAdditionalConfigProps().put("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
+        configuration.set("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
         context.setDataSource("query:testquerywithwhere");
         context.addOption("PARTITION_BY", "count:int");
         context.addOption("RANGE", "1:10");
@@ -205,7 +207,7 @@ public class JdbcAccessorTest {
         when(mockStatement.executeQuery(queryPassed.capture())).thenReturn(mockResultSet);
         wireMocksForReadWithCreateStatement();
 
-        accessor.initialize(context);
+        accessor.initialize(context, configuration);
         accessor.openForRead();
 
         String expected = "SELECT  FROM (SELECT dept.name, count(), max(emp.salary)\n" +
@@ -219,21 +221,21 @@ public class JdbcAccessorTest {
     @Test
     public void testGetFragmentsAndReadFromQueryWithPartitions() throws Exception {
         String serversDirectory = new File(this.getClass().getClassLoader().getResource("servers").toURI()).getCanonicalPath();
-        context.getAdditionalConfigProps().put("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
+        configuration.set("pxf.config.server.directory", serversDirectory + File.separator + "test-server");
         context.setDataSource("query:testquery");
         context.addOption("PARTITION_BY", "count:int");
         context.addOption("RANGE", "1:10");
         context.addOption("INTERVAL", "1");
 
         JdbcPartitionFragmenter fragmenter = new JdbcPartitionFragmenter();
-        fragmenter.initialize(context);
+        fragmenter.initialize(context, configuration);
         context.setFragmentMetadata(fragmenter.getFragments().get(2).getMetadata());
 
         ArgumentCaptor<String> queryPassed = ArgumentCaptor.forClass(String.class);
         when(mockStatement.executeQuery(queryPassed.capture())).thenReturn(mockResultSet);
         wireMocksForReadWithCreateStatement();
 
-        accessor.initialize(context);
+        accessor.initialize(context, configuration);
         accessor.openForRead();
 
         String expected = "SELECT  FROM (SELECT dept.name, count(), max(emp.salary)\n" +
