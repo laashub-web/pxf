@@ -23,29 +23,30 @@ import org.apache.commons.collections.map.LRUMap;
 import org.greenplum.pxf.api.OneRow;
 import org.greenplum.pxf.api.StatsAccessor;
 import org.greenplum.pxf.api.io.Writable;
-import org.greenplum.pxf.api.model.RequestContext;
 import org.greenplum.pxf.api.utilities.AccessorFactory;
 import org.greenplum.pxf.api.utilities.ResolverFactory;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 
 import java.util.LinkedList;
 
 /**
  * Bridge class optimized for aggregate queries.
- *
  */
+@Component
+@Scope("prototype")
 public class AggBridge extends ReadBridge implements Bridge {
 
     /* Avoid resolving rows with the same key twice */
     private LRUMap outputCache;
 
-    public AggBridge(RequestContext context) {
-        this(context, AccessorFactory.getInstance(), ResolverFactory.getInstance());
+    AggBridge(AccessorFactory accessorFactory, ResolverFactory resolverFactory) {
+        super(accessorFactory, resolverFactory);
     }
 
-    AggBridge(RequestContext context, AccessorFactory accessorFactory, ResolverFactory resolverFactory) {
-        super(context, accessorFactory, resolverFactory);
-    }
-
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean beginIteration() throws Exception {
         /* Initialize LRU cache with 100 items*/
@@ -55,6 +56,9 @@ public class AggBridge extends ReadBridge implements Bridge {
         return openForReadStatus;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @SuppressWarnings("unchecked")
     public Writable getNext() throws Exception {

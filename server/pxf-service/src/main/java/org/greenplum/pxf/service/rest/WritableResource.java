@@ -20,13 +20,13 @@ package org.greenplum.pxf.service.rest;
  */
 
 import org.apache.catalina.connector.ClientAbortException;
+import org.apache.hadoop.conf.Configuration;
+import org.greenplum.pxf.api.model.ConfigurationFactory;
 import org.greenplum.pxf.api.model.RequestContext;
 import org.greenplum.pxf.api.utilities.Utilities;
-import org.greenplum.pxf.service.HttpRequestParser;
 import org.greenplum.pxf.service.RequestParser;
 import org.greenplum.pxf.service.bridge.Bridge;
 import org.greenplum.pxf.service.bridge.BridgeFactory;
-import org.greenplum.pxf.service.bridge.SimpleBridgeFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -42,7 +42,6 @@ import java.io.DataInputStream;
 import java.io.InputStream;
 
 import static org.greenplum.pxf.api.model.RequestContext.RequestType;
-
 
 /*
  * Running this resource manually:
@@ -87,24 +86,21 @@ import static org.greenplum.pxf.api.model.RequestContext.RequestType;
 @RequestMapping("/pxf/" + Version.PXF_PROTOCOL_VERSION + "/Writable/")
 public class WritableResource extends BaseResource {
 
-    private BridgeFactory bridgeFactory;
+    private final BridgeFactory bridgeFactory;
 
-    /**
-     * Creates an instance of the resource with the default singletons of RequestParser and BridgeFactory.
-     */
-    public WritableResource() {
-        this(HttpRequestParser.getInstance(), SimpleBridgeFactory.getInstance());
-    }
+    private final ConfigurationFactory configurationFactory;
 
     /**
      * Creates an instance of the resource with provided instances of RequestParser and BridgeFactory.
      *
      * @param parser        request parser
      * @param bridgeFactory bridge factory
+     * @
      */
-    WritableResource(RequestParser<MultiValueMap<String, String>> parser, BridgeFactory bridgeFactory) {
+    public WritableResource(RequestParser<MultiValueMap<String, String>> parser, BridgeFactory bridgeFactory, ConfigurationFactory configurationFactory) {
         super(RequestType.WRITE_BRIDGE, parser);
         this.bridgeFactory = bridgeFactory;
+        this.configurationFactory = configurationFactory;
     }
 
     /**
@@ -124,7 +120,13 @@ public class WritableResource extends BaseResource {
                                          HttpServletRequest request) throws Exception {
 
         RequestContext context = parseRequest(headers);
-        Bridge bridge = bridgeFactory.getWriteBridge(context);
+        Configuration configuration = configurationFactory.
+                initConfiguration(
+                        context.getConfig(),
+                        context.getServerName(),
+                        context.getUser(),
+                        context.getAdditionalConfigProps());
+        Bridge bridge = bridgeFactory.getBridge(context, configuration);
 
         // THREAD-SAFE parameter has precedence
         boolean isThreadSafe = context.isThreadSafe() && bridge.isThreadSafe();

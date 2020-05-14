@@ -22,24 +22,16 @@ package org.greenplum.pxf.api.utilities;
 
 import org.greenplum.pxf.api.model.Accessor;
 import org.greenplum.pxf.api.model.RequestContext;
+import org.springframework.stereotype.Component;
 
 /**
  * Factory class for creation of {@link Accessor} objects.
  */
+@Component
 public class AccessorFactory extends BasePluginFactory<Accessor> {
 
-    private static final AccessorFactory instance = new AccessorFactory();
-
-    /**
-     * Returns a singleton instance of the factory.
-     * @return a singleton instance of the factory.
-     */
-    public static AccessorFactory getInstance() {
-        return instance;
-    }
-
     @Override
-    protected String getPluginClassName(RequestContext requestContext) {
-        return requestContext.getAccessor();
+    protected String getPluginClassName(RequestContext context) {
+        return context.getAccessor();
     }
 }

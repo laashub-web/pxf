@@ -172,32 +172,24 @@ public class JdbcBasePlugin extends BasePlugin {
      * Creates a new instance with default (singleton) instance of ConnectionManager.
      */
     public JdbcBasePlugin() {
-        this(ConnectionManager.getInstance(), BaseConfigurationFactory.getInstance());
-    }
-
-    /**
-     * Creates a new instance with the given ConnectionManager
-     *
-     * @param connectionManager    connection manager instance
-     */
-    JdbcBasePlugin(ConnectionManager connectionManager) {
-        this(connectionManager, BaseConfigurationFactory.getInstance());
+        this(ConnectionManager.getInstance());
     }
 
     /**
      * Creates a new instance with the given ConnectionManager and ConfigurationFactory
      *
      * @param connectionManager    connection manager instance
-     * @param configurationFactory the configuration factory
      */
-    JdbcBasePlugin(ConnectionManager connectionManager, ConfigurationFactory configurationFactory) {
-        super(configurationFactory);
+    JdbcBasePlugin(ConnectionManager connectionManager) {
         this.connectionManager = connectionManager;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void initialize(RequestContext context) {
-        super.initialize(context);
+    public void initialize(RequestContext context, Configuration configuration) {
+        super.initialize(context, configuration);
 
         // Required parameter. Can be auto-overwritten by user options
         String jdbcDriver = configuration.get(JDBC_DRIVER_PROPERTY_NAME);
@@ -469,14 +461,14 @@ public class JdbcBasePlugin extends BasePlugin {
      * @throws Exception
      */
     private Connection getConnectionInternal() throws Exception {
-        if (Utilities.isSecurityEnabled(configuration) && StringUtils.startsWith(jdbcUrl, HIVE_URL_PREFIX)) {
-            return SecureLogin.getInstance().getLoginUser(context, configuration).
-                    doAs((PrivilegedExceptionAction<Connection>) () ->
-                            connectionManager.getConnection(context.getServerName(), jdbcUrl, connectionConfiguration, isConnectionPoolUsed, poolConfiguration, poolQualifier));
-
-        } else {
+//        if (Utilities.isSecurityEnabled(configuration) && StringUtils.startsWith(jdbcUrl, HIVE_URL_PREFIX)) {
+////            return SecureLogin.getInstance().getLoginUser(context, configuration).
+////                    doAs((PrivilegedExceptionAction<Connection>) () ->
+////                            connectionManager.getConnection(context.getServerName(), jdbcUrl, connectionConfiguration, isConnectionPoolUsed, poolConfiguration, poolQualifier));
+//
+//        } else {
             return connectionManager.getConnection(context.getServerName(), jdbcUrl, connectionConfiguration, isConnectionPoolUsed, poolConfiguration, poolQualifier);
-        }
+//        }
     }
 
     /**

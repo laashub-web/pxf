@@ -1,5 +1,7 @@
 package org.greenplum.pxf.api.model;
 
+import org.apache.hadoop.conf.Configuration;
+
 /**
  * Base interface for all plugin types that manages initialization and provides
  * information on plugin thread safety
@@ -9,9 +11,10 @@ public interface Plugin {
     /**
      * Initialize the plugin for the incoming request
      *
-     * @param requestContext data provided in the request
+     * @param context data provided in the request
+     * @param configuration the server configuration
      */
-    void initialize(RequestContext requestContext);
+    void initialize(RequestContext context, Configuration configuration);
 
     /**
      * Checks if the plugin is thread safe

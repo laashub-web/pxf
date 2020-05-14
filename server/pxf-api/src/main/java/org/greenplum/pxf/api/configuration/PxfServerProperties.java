@@ -31,7 +31,7 @@ public class PxfServerProperties {
     /**
      * Enable caching of metadata calls from a single JVM
      */
-    private boolean metadataCache = true;
+    private boolean metadataCacheEnabled = true;
 
     /**
      * Customizable settings for tomcat through PXF

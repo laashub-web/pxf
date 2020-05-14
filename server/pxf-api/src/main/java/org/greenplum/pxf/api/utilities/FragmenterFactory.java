@@ -22,24 +22,16 @@ package org.greenplum.pxf.api.utilities;
 
 import org.greenplum.pxf.api.model.Fragmenter;
 import org.greenplum.pxf.api.model.RequestContext;
+import org.springframework.stereotype.Component;
 
 /**
  * Factory class for creation of {@link Fragmenter} objects.
  */
+@Component
 public class FragmenterFactory extends BasePluginFactory<Fragmenter> {
 
-    private static final FragmenterFactory instance = new FragmenterFactory();
-
-    /**
-     * Returns a singleton instance of the factory.
-     * @return a singleton instance of the factory.
-     */
-    public static FragmenterFactory getInstance() {
-        return instance;
-    }
-
     @Override
-    protected String getPluginClassName(RequestContext requestContext) {
-        return requestContext.getFragmenter();
+    protected String getPluginClassName(RequestContext context) {
+        return context.getFragmenter();
     }
 }

@@ -22,21 +22,13 @@ package org.greenplum.pxf.api.utilities;
 
 import org.greenplum.pxf.api.model.RequestContext;
 import org.greenplum.pxf.api.model.Resolver;
+import org.springframework.stereotype.Component;
 
 /**
  * Factory class for creation of {@link Resolver} objects.
  */
+@Component
 public class ResolverFactory extends BasePluginFactory<Resolver> {
-
-    private static final ResolverFactory instance = new ResolverFactory();
-
-    /**
-     * Returns a singleton instance of the factory.
-     * @return a singleton instance of the factory.
-     */
-    public static ResolverFactory getInstance() {
-        return instance;
-    }
 
     @Override
     protected String getPluginClassName(RequestContext requestContext) {

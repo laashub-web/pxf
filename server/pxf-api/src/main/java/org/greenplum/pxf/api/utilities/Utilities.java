@@ -299,19 +299,6 @@ public class Utilities {
     }
 
     /**
-     * Returns whether fragmenter cache has been configured as enabled.
-     * Defaults to true.
-     *
-     * @return true if fragmenter cache is enabled, false otherwise
-     * deprecated use {@link PxfServerProperties#isMetadataCache()} instead
-     */
-//    @Deprecated
-    public static boolean isFragmenterCacheEnabled() {
-        // TODO: mark as deprecated
-        return !StringUtils.equalsIgnoreCase(System.getProperty(PROPERTY_KEY_FRAGMENTER_CACHE, "true"), "false");
-    }
-
-    /**
      * Data sources are absolute data paths. Method ensures that dataSource
      * begins with '/' unless the path includes the protocol as a prefix
      *

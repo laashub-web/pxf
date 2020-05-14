@@ -1,5 +1,6 @@
 package org.greenplum.pxf.service.bridge;
 
+import org.apache.hadoop.conf.Configuration;
 import org.greenplum.pxf.api.model.RequestContext;
 
 /**
@@ -8,16 +9,11 @@ import org.greenplum.pxf.api.model.RequestContext;
 public interface BridgeFactory {
 
     /**
-     * Returns an instance of the Bridge for reading data based on the request context
-     * @param context request context
+     * Returns an instance of the Bridge for reading or writing data based on the request context
+     *
+     * @param context       request context
+     * @param configuration the server configuration
      * @return an instance of the Bridge suitable for a given request
      */
-    Bridge getReadBridge(RequestContext context);
-
-    /**
-     * Returns an instance of the Bridge for writing data based on the request context
-     * @param context request context
-     * @return an instance of the Bridge suitable for a given request
-     */
-    Bridge getWriteBridge(RequestContext context);
+    Bridge getBridge(RequestContext context, Configuration configuration);
 }

@@ -1,5 +1,6 @@
 package org.greenplum.pxf.api.utilities;
 
+import org.apache.hadoop.conf.Configuration;
 import org.greenplum.pxf.api.model.Plugin;
 import org.greenplum.pxf.api.model.RequestContext;
 
@@ -13,8 +14,9 @@ public interface PluginFactory<T extends Plugin> {
     /**
      * Get an instance of the plugin with a given class names.
      *
-     * @param requestContext context of the current request
+     * @param context       context of the current request
+     * @param configuration the server configuration
      * @return an initialized instance of the plugin
      */
-    T getPlugin(RequestContext requestContext);
+    T getPlugin(RequestContext context, Configuration configuration);
 }

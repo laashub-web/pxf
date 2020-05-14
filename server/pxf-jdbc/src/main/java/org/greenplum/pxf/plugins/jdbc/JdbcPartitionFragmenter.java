@@ -20,6 +20,7 @@ package org.greenplum.pxf.plugins.jdbc;
  */
 
 import org.apache.commons.lang.SerializationUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.greenplum.pxf.api.model.BaseFragmenter;
 import org.greenplum.pxf.api.model.Fragment;
 import org.greenplum.pxf.api.model.FragmentStats;
@@ -44,8 +45,8 @@ public class JdbcPartitionFragmenter extends BaseFragmenter {
     private String interval;
 
     @Override
-    public void initialize(RequestContext context) {
-        super.initialize(context);
+    public void initialize(RequestContext context, Configuration configuration) {
+        super.initialize(context, configuration);
 
         String partitionByOption = context.getOption("PARTITION_BY");
         if (partitionByOption == null) return;

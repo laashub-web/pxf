@@ -29,30 +29,20 @@ import org.slf4j.LoggerFactory;
  */
 public class BasePlugin implements Plugin {
 
-    protected ConfigurationFactory configurationFactory;
     protected Logger LOG = LoggerFactory.getLogger(this.getClass());
     protected Configuration configuration;
     protected RequestContext context;
     private boolean initialized = false;
 
-    public BasePlugin() {
-        this(BaseConfigurationFactory.getInstance());
-    }
-
-    protected BasePlugin(ConfigurationFactory configurationFactory) {
-        this.configurationFactory = configurationFactory;
-    }
-
     /**
      * Initialize the plugin for the incoming request
      *
-     * @param requestContext data provided in the request
+     * @param context data provided in the request
      */
     @Override
-    public void initialize(RequestContext requestContext) {
-        this.context = requestContext;
-        this.configuration = configurationFactory.
-                initConfiguration(context.getConfig(), context.getServerName(), context.getUser(), context.getAdditionalConfigProps());
+    public void initialize(RequestContext context, Configuration configuration) {
+        this.context = context;
+        this.configuration = configuration;
         this.initialized = true;
     }
 

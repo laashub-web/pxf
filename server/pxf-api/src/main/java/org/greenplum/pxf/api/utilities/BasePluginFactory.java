@@ -1,6 +1,7 @@
 package org.greenplum.pxf.api.utilities;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.greenplum.pxf.api.model.Plugin;
 import org.greenplum.pxf.api.model.RequestContext;
 
@@ -9,11 +10,14 @@ import java.lang.reflect.InvocationTargetException;
 
 public abstract class BasePluginFactory<T extends Plugin> implements PluginFactory<T> {
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public T getPlugin(RequestContext requestContext) {
+    public T getPlugin(RequestContext context, Configuration configuration) {
 
         // get the class name of the plugin
-        String pluginClassName = getPluginClassName(requestContext);
+        String pluginClassName = getPluginClassName(context);
         if (StringUtils.isBlank(pluginClassName)) {
             throw new RuntimeException("Could not determine plugin class name");
         }
@@ -51,7 +55,7 @@ public abstract class BasePluginFactory<T extends Plugin> implements PluginFacto
         }
 
         // initialize the instance
-        instance.initialize(requestContext);
+        instance.initialize(context, configuration);
 
         // cast into a target type
         @SuppressWarnings("unchecked")

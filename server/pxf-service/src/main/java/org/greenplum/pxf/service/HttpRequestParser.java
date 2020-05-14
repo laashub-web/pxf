@@ -11,6 +11,8 @@ import org.greenplum.pxf.api.utilities.Utilities;
 import org.greenplum.pxf.service.profile.ProfilesConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 import org.springframework.util.MultiValueMap;
 
 import java.io.UnsupportedEncodingException;
@@ -29,27 +31,24 @@ import java.util.stream.Collectors;
 /**
  * Parser for HTTP requests that contain data in HTTP headers.
  */
+@Component
 public class HttpRequestParser implements RequestParser<MultiValueMap<String, String>> {
 
     private static final String TRUE_LCASE = "true";
     private static final String FALSE_LCASE = "false";
 
     private static final Logger LOG = LoggerFactory.getLogger(HttpRequestParser.class);
-    private static final HttpRequestParser instance = new HttpRequestParser();
     private static final String PROFILE_SCHEME = "PROFILE-SCHEME";
 
-    private PluginConf pluginConf;
+    private final PluginConf pluginConf;
 
-    public HttpRequestParser() {
-        this(ProfilesConf.getInstance());
-    }
-
-    HttpRequestParser(PluginConf pluginConf) {
+    /**
+     * Create a new instance of the HttpRequestParser with the given PluginConf
+     *
+     * @param pluginConf the plugin conf
+     */
+    public HttpRequestParser(PluginConf pluginConf) {
         this.pluginConf = pluginConf;
-    }
-
-    public static HttpRequestParser getInstance() {
-        return instance;
     }
 
     /**
