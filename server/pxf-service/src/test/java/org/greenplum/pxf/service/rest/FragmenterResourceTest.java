@@ -51,6 +51,7 @@ public class FragmenterResourceTest {
     private PxfServerProperties mockPxfServerProperties;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     public void setup() {
 
         configuration = new Configuration();

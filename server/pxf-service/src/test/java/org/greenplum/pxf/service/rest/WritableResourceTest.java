@@ -49,6 +49,7 @@ public class WritableResourceTest {
     private HttpServletRequest mockHttpServletRequest;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     public void before() throws IOException {
 
         Configuration configuration = new Configuration();

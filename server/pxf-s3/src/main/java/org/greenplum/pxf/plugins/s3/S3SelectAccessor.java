@@ -14,6 +14,7 @@ import com.amazonaws.services.s3.model.SelectObjectContentEventVisitor;
 import com.amazonaws.services.s3.model.SelectObjectContentRequest;
 import com.amazonaws.services.s3.model.SelectObjectContentResult;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.s3a.DefaultS3ClientFactory;
 import org.greenplum.pxf.api.OneRow;
 import org.greenplum.pxf.api.model.Accessor;
@@ -28,6 +29,8 @@ import java.io.InputStreamReader;
 import java.net.URI;
 import java.sql.SQLException;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.apache.commons.lang3.ObjectUtils.defaultIfNull;
 
 /**
  * Accessor to read data from S3, using the S3 Select Framework.
@@ -55,9 +58,12 @@ public class S3SelectAccessor extends BasePlugin implements Accessor {
     private int lineReadCount;
     private URI name;
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void initialize(RequestContext requestContext) {
-        super.initialize(requestContext);
+    public void initialize(RequestContext context, Configuration configuration) {
+        super.initialize(context, configuration);
 
         name = URI.create(context.getDataSource());
         s3Client = initS3Client();
@@ -109,8 +115,10 @@ public class S3SelectAccessor extends BasePlugin implements Accessor {
     }
 
     @Override
-    public void closeForRead() throws Exception {
+    public void closeForRead() throws IOException {
         LOG.debug("Read {} lines", lineReadCount);
+        IOException error = null;
+
         /*
          * Make sure to close all streams
          */
@@ -120,6 +128,7 @@ public class S3SelectAccessor extends BasePlugin implements Accessor {
                 LOG.debug("SelectObjectContentResult closed");
             } catch (IOException e) {
                 LOG.error("Unable to close SelectObjectContentResult", e);
+                error = e;
             }
         }
 
@@ -129,7 +138,14 @@ public class S3SelectAccessor extends BasePlugin implements Accessor {
                 LOG.debug("ResultInputStream closed");
             } catch (IOException e) {
                 LOG.error("Unable to close ResultInputStream", e);
+                error = defaultIfNull(error, e);
             }
+        }
+
+        if (error != null) {
+            // If there's an error during closing of streams, report the first
+            // encountered error
+            throw error;
         }
 
         /*
