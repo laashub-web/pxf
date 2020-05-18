@@ -30,7 +30,7 @@ import java.io.DataInputStream;
  * class acts as an iterator over externally stored data, and should implement
  * getNext (for reading) or setNext (for writing) for handling accessed data.
  */
-public interface Bridge extends Plugin {
+public interface Bridge {
 
     /**
      * Starts the iteration for data access.
@@ -43,6 +43,8 @@ public interface Bridge extends Plugin {
     Writable getNext() throws Exception;
 
     boolean setNext(DataInputStream inputStream) throws Exception;
+
+    boolean isThreadSafe();
 
     void endIteration() throws Exception;
 }

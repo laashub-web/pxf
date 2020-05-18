@@ -6,6 +6,13 @@ package org.greenplum.pxf.api.model;
 public interface Plugin {
 
     /**
+     * Sets the context for the current request
+     *
+     * @param context the context for the current request
+     */
+    void setRequestContext(RequestContext context);
+
+    /**
      * Checks if the plugin is thread safe
      *
      * @return true if plugin is thread safe, false otherwise

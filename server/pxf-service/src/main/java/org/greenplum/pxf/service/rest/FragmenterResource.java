@@ -22,7 +22,6 @@ package org.greenplum.pxf.service.rest;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import org.apache.log4j.Level;
 import org.greenplum.pxf.api.configuration.PxfServerProperties;
-import org.greenplum.pxf.api.model.ConfigurationFactory;
 import org.greenplum.pxf.api.model.Fragment;
 import org.greenplum.pxf.api.model.FragmentStats;
 import org.greenplum.pxf.api.model.Fragmenter;
@@ -30,10 +29,9 @@ import org.greenplum.pxf.api.model.RequestContext;
 import org.greenplum.pxf.api.utilities.FragmenterCacheFactory;
 import org.greenplum.pxf.api.utilities.FragmentsResponse;
 import org.greenplum.pxf.api.utilities.FragmentsResponseFormatter;
-import org.greenplum.pxf.service.RequestParser;
+import org.greenplum.pxf.api.utilities.Utilities;
 import org.greenplum.pxf.service.SessionId;
 import org.greenplum.pxf.service.utilities.AnalyzeUtils;
-import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
@@ -194,7 +192,7 @@ public class FragmenterResource extends BaseResource {
      * @return the fragmenter initialized with the request context
      */
     private Fragmenter getFragmenter(RequestContext context) {
-        return applicationContext.getBean(context.getFragmenter().substring(context.getFragmenter().lastIndexOf(".") + 1), Fragmenter.class);
+        return applicationContext.getBean(Utilities.getShortClassName(context.getFragmenter()), Fragmenter.class);
     }
 
     /**

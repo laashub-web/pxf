@@ -319,4 +319,9 @@ public class Utilities {
         if (length == 0) return "";
         return s.substring(0, length);
     }
+
+    public static String getShortClassName(String fullyQualifiedClassName) {
+        int lastDot = fullyQualifiedClassName.lastIndexOf(".");
+        return (lastDot >= 0) ? fullyQualifiedClassName.substring(lastDot + 1) : fullyQualifiedClassName;
+    }
 }

@@ -82,6 +82,10 @@ public class UtilitiesTest {
         }
 
         @Override
+        public void setRequestContext(RequestContext context) {
+        }
+
+        @Override
         public boolean isThreadSafe() {
             return false;
         }
@@ -118,6 +122,10 @@ public class UtilitiesTest {
         }
 
         @Override
+        public void setRequestContext(RequestContext context) {
+        }
+
+        @Override
         public boolean isThreadSafe() {
             return false;
         }
@@ -141,6 +149,10 @@ public class UtilitiesTest {
         @Override
         public OneRow setFields(List<OneField> record) {
             return null;
+        }
+
+        @Override
+        public void setRequestContext(RequestContext context) {
         }
 
         @Override

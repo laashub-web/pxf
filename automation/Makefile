@@ -37,9 +37,11 @@ ifeq "$(PROTOCOL)" "minio"
 	PROTOCOL=s3
 endif
 
+PXF_CONF_SERVERS ?= ~/pxf/servers
+
 ifneq "$(PROTOCOL)" ""
 	MAVEN_TEST_OPTS+= -DPROTOCOL=$(PROTOCOL)
-	PROTOCOL_HOME=~/pxf/servers/$(PROTOCOL)
+	PROTOCOL_HOME=$(PXF_CONF_SERVERS)/$(PROTOCOL)
 endif
 
 ifneq "$(ACCESS_KEY_ID)" ""
@@ -66,10 +68,6 @@ ifeq "$(HIVE_SERVER_HOST)" ""
 endif
 ifeq "$(HIVE_SERVER_PORT)" ""
 	HIVE_SERVER_PORT=10000
-endif
-
-ifeq "$(PXF_CONF_SERVERS)" ""
-	PXF_CONF_SERVERS=~/pxf/servers
 endif
 
 SED_OPTS=-i

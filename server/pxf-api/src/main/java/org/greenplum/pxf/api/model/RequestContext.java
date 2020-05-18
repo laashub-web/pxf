@@ -249,8 +249,9 @@ public class RequestContext {
      *
      * @return fragment metadata
      */
-    public FragmentMetadata getFragmentMetadata() {
-        return fragmentMetadata;
+    @SuppressWarnings("unchecked")
+    public <T extends FragmentMetadata> T getFragmentMetadata() {
+        return (T) fragmentMetadata;
     }
 
     /**
