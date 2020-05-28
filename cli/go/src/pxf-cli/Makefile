@@ -7,7 +7,7 @@ GO_DEP_CACHE := ${PXF_ROOT_DIR}/cli/go/pkg/dep
 PXF_SERVER_DIR := ${PXF_ROOT_DIR}/server
 PXF_STAGING_DIR := ${PXF_SERVER_DIR}/build/stage/bin
 PXF_SERVICE_SCRIPTS := ${PXF_SERVER_DIR}/pxf-service/src/scripts
-PXF_VERSION := $(shell grep version= ${PXF_SERVER_DIR}/gradle.properties | cut -d= -f2)
+PXF_VERSION := $(shell grep ^version= ${PXF_SERVER_DIR}/gradle.properties | cut -d= -f2)
 LDFLAGS := -ldflags "-X ${TARGET}/cmd.version=${PXF_VERSION}"
 GOPATH := ${PXF_ROOT_DIR}/cli/go
 
